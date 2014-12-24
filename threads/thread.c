@@ -113,6 +113,11 @@ thread_init (void)
     current stack pointer. It rounds it down to the start of the page
     since 'struct thread' is always at the beginning of a page
   */
+  /* 
+    TODO: 
+    Current esp points to an address which gives us current thread
+    Q: How is the page allocated to which esp points to?
+  */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
@@ -155,6 +160,10 @@ thread_tick (void)
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
+    /* Z
+      In just sets a variable yield_on_return = true
+      How does it cause the interrupt handler to yield to a new process?
+    */
     intr_yield_on_return ();
 }
 
@@ -310,6 +319,7 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
+//TODO: What does this block do?
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -321,6 +331,10 @@ thread_exit (void)
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
+  /* Z
+  NOT_REACHED just fires as assertion if it gets executed
+  It should never execute
+  */
   NOT_REACHED ();
 }
 
@@ -427,7 +441,7 @@ idle (void *idle_started_ UNUSED)
       thread_block ();
 
       /* Re-enable interrupts and wait for the next one.
-
+          TODO: Where are the interrupts being turned on?
          The `sti' instruction disables interrupts until the
          completion of the next instruction, so these two
          instructions are executed atomically.  This atomicity is
@@ -510,6 +524,9 @@ alloc_frame (struct thread *t, size_t size)
    empty.  (If the running thread can continue running, then it
    will be in the run queue.)  If the run queue is empty, return
    idle_thread. */
+
+
+//TODO : Alright so priority scheduling part comes here \m/   
 static struct thread *
 next_thread_to_run (void) 
 {
@@ -550,6 +567,7 @@ thread_schedule_tail (struct thread *prev)
 
 #ifdef USERPROG
   /* Activate the new address space. */
+  //TODO: What does process_activate do?
   process_activate ();
 #endif
 
