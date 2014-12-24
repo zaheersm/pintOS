@@ -20,8 +20,7 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
-/* List of processes in THREAD_READY state, that is, processes
-   that are ready to run but not actually running. */
+
 static struct list ready_list;
 
 /* List of all processes.  Processes are added to this list
@@ -37,9 +36,15 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
+    /* Z
+    Bottom-est frame in kernel thread
+    eip is set to NULL when we create thread
+    func is the function to be executed
+    */
     void *eip;                  /* Return address. */
     thread_func *function;      /* Function to call. */
     void *aux;                  /* Auxiliary data for function. */
@@ -59,6 +64,13 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+/* Z
+  kernel_thread is the bottom-est stack frame in thread
+  It enables interrupts, call's the thread's function (passed 
+  to thread_create())
+  If the thread's function returns, it call's thread_exit() to terminate
+  the thread
+*/
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -68,6 +80,7 @@ static void init_thread (struct thread *, const char *name, int priority);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
+//TODO : Differentiate between schedule and thread_schedule_tail
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
@@ -84,6 +97,7 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
+//TODO : Who calls thread_init? 
 void
 thread_init (void) 
 {
@@ -94,6 +108,11 @@ thread_init (void)
   list_init (&all_list);
 
   /* Set up a thread structure for the running thread. */
+  /* Z
+    running_thread determines the current thread by means of
+    current stack pointer. It rounds it down to the start of the page
+    since 'struct thread' is always at the beginning of a page
+  */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
@@ -197,6 +216,7 @@ thread_create (const char *name, int priority,
 
   /* Stack frame for switch_entry(). */
   ef = alloc_frame (t, sizeof *ef);
+  //TODO: What the hell is this? I mean the syntax
   ef->eip = (void (*) (void)) kernel_thread;
 
   /* Stack frame for switch_threads(). */
