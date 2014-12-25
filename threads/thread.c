@@ -54,7 +54,6 @@ struct kernel_thread_frame
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
-
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
@@ -389,6 +388,21 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  if (list_empty(&ready_list))
+    return;
+  /* PS
+    Get highest priority thread from ready list
+    and compare. 
+    If current thread's priority is lower 
+    than highest priority thread, yield
+  */
+  
+  struct list_elem * e = list_back (&ready_list);
+  struct thread * t = list_entry(e, struct thread, elem);
+  enum intr_level old_level = intr_disable();
+  if ( new_priority < t->priority)
+    thread_yield();
+  intr_set_level(old_level);  
 }
 
 /* Returns the current thread's priority. */
