@@ -105,7 +105,6 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-
   /* Set up a thread structure for the running thread. */
   /* Z
     running_thread determines the current thread by means of
@@ -527,6 +526,9 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->original_priority = priority;
+  list_init(&t->donors_list);
+  t->wait_lock = NULL;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
@@ -576,7 +578,7 @@ bool less_ready_list ( const struct list_elem *a, const struct list_elem *b, voi
   struct thread * t_a = list_entry (a,struct thread, elem);
   struct thread * t_b = list_entry (b, struct thread, elem);
 
-  if (t_a->priority < t_b->priority)
+  if (t_a->priority <= t_b->priority)
     return true;
   else
     return false;

@@ -32,11 +32,6 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
-/* PS 
-  Comparator function to keep waiters list ordered w.r.t priority
-*/
-bool less_waiters(const struct list_elem *, const struct list_elem *, void * aux);
-
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -73,26 +68,11 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      //list_push_back (&sema->waiters, &thread_current ()->elem);
-      /* PS
-        Inserting thread to waiters list inorder w.r.t priority
-      */
-      list_insert_ordered(&sema->waiters,&thread_current()->elem,less_waiters,NULL);
+      list_push_back (&sema->waiters, &thread_current ()->elem);
       thread_block ();
     }
   sema->value--;
   intr_set_level (old_level);
-}
-
-bool less_waiters(const struct list_elem * a, const struct list_elem * b, void * aux) 
-{
-  struct thread * t_a = list_entry(a, struct thread, elem);
-  struct thread * t_b = list_entry(b, struct thread, elem);
-
-  if (t_a -> priority < t_b ->priority)
-    return true;
-  else
-    return false;
 }
 
 /* Down or "P" operation on a semaphore, but only if the
@@ -133,34 +113,11 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-
-  struct thread * t=NULL;
   if (!list_empty (&sema->waiters)) 
-  {
-    //Replacing front with back
-    /* PS
-      Popping last thread in the last
-      i.e. thread with the highest priority
-    */
-    t = list_entry(list_pop_back(&sema->waiters),struct thread, elem);
-    thread_unblock(t);
-  }                              
+    thread_unblock (list_entry (list_pop_front (&sema->waiters),
+                                struct thread, elem));
   sema->value++;
   intr_set_level (old_level);
-  
-  old_level = intr_disable();
-  /* PS
-    If current thread has lower priority than the thread woken up
-    then current thread should yield
-  */
-  if (t!=NULL)
-  {
-    if(thread_current()->priority < t->priority)
-      thread_yield();
-  }
-  
-  intr_set_level(old_level);
-
 }
 
 static void sema_test_helper (void *sema_);

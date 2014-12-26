@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -89,10 +90,23 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-
+    /* PS
+    Each thread will keep a list of threads it has donated priority.
+    Whenever this thread recieves donation, it updates the donation
+    of threads in donee_elem
+    This will allow us to enable recursion in donation
+    Whenever this thread gets scheduled, it empties the list
+    
+    original_priority will help us in restoring the priority
+    of a the thread
+    */
+    int original_priority;
+    struct lock * wait_lock;
+    struct list donors_list;
+    struct list_elem donor_elem;
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-
+    
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
