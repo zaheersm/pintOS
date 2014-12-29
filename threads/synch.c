@@ -33,7 +33,8 @@
 #include "threads/thread.h"
 
 bool less_waiters (const struct list_elem *, const struct list_elem*,void * aux);
-void donate_priority ( struct lock *);
+void donate_priority (struct lock *);
+void release_priority (struct lock *);
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -303,9 +304,49 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
+  
+  enum intr_level old_level;
+  old_level = intr_disable();
 
   lock->holder = NULL;
+  release_priority(lock);
   sema_up (&lock->semaphore);
+
+  intr_set_level(old_level);
+
+}
+
+void release_priority (struct lock * lock) 
+{
+  if (list_empty(&thread_current()->donors_list))
+    return;
+  
+  struct thread * curr = thread_current();
+  struct list_elem * e;
+
+  for (e = list_begin(&curr->donors_list); e!= list_end(&curr->donors_list); e=list_next(e))
+  {
+    struct thread * t = list_entry ( e, struct thread, donor_elem);
+    if (t->wait_lock == lock)
+      list_remove(e);
+  }
+
+  if (list_empty(&curr->donors_list))
+  {
+    curr->priority = curr->original_priority;
+  }
+  else
+  {
+    int max = curr->original_priority;
+    for (e = list_begin(&curr->donors_list); e!=list_end(&curr->donors_list); e= list_next(e))
+    {
+      struct thread * t = list_entry (e, struct thread, donor_elem);
+      if(t->priority > max)
+        max = t->priority;
+    }
+    curr->priority = max;  
+  }
+    
 }
 
 /* Returns true if the current thread holds LOCK, false
