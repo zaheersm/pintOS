@@ -33,6 +33,7 @@
 #include "threads/thread.h"
 
 bool less_waiters (const struct list_elem *, const struct list_elem*,void * aux);
+void donate_priority ( struct lock *);
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -223,10 +224,53 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
+  
 
+  enum intr_level old_level;
+
+  old_level = intr_disable();
+  if(lock->holder != NULL)
+  {
+    donate_priority(lock);
+  }
   sema_down (&lock->semaphore);
   thread_current()->wait_lock = NULL;
   lock->holder = thread_current ();
+
+  intr_set_level(old_level);
+}
+
+void
+donate_priority(struct lock* lock)
+{
+  //TODO: Assert that interrupts are off
+  //TODO: Assert lock->holder != NULL
+  
+  thread_current()->wait_lock = lock;
+  list_push_back(&lock->holder->donors_list, &thread_current()->donor_elem);
+  
+  // Variable used for iteration
+  struct thread * t_curr = thread_current();
+  struct lock * l_curr = lock;
+  int i = 0;
+  
+  while (l_curr!=NULL && i != 8)
+  { 
+    // TODO: It can't be NULL otherwise we wouldn't have reached here
+    if(l_curr->holder == NULL)
+      return;
+    if(t_curr->priority <= l_curr->holder->priority)
+      return;
+    
+    l_curr->holder->priority= t_curr->priority;
+    t_curr = l_curr->holder;
+    l_curr = l_curr->holder->wait_lock;
+    i++;
+    
+
+  }
+  
+  return;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
