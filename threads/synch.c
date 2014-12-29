@@ -136,6 +136,7 @@ sema_up (struct semaphore *sema)
   }
   sema->value++;
   intr_set_level (old_level);
+  
   old_level = intr_disable();
   
   if (t!= NULL)
@@ -224,6 +225,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!lock_held_by_current_thread (lock));
 
   sema_down (&lock->semaphore);
+  thread_current()->wait_lock = NULL;
   lock->holder = thread_current ();
 }
 
