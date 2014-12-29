@@ -101,6 +101,7 @@ struct thread
     of a the thread
     */
     int original_priority;
+    
     struct lock * wait_lock;
     struct list donors_list;
     struct list_elem donor_elem;
@@ -116,7 +117,10 @@ struct thread
     int64_t sleep_time;
     struct list_elem sleep_list_elem;
     
+    int recent_cpu;
+    int nice;
     /* Owned by thread.c. */
+    
     unsigned magic;                     /* Detects stack overflow. */
   };
 

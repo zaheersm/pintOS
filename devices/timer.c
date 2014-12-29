@@ -188,12 +188,20 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   //thread_tick();
-
+  /*
+  if(ticks % TIMER_FREQ == 0)
+  {
+    //printf("HERE in handler\n");
+    thread_set_load_avg();
+    update_recent_cpu();
+  }
+  */
+  //increment_recent_cpu();
   wake_sleep();
   //thread_foreach(wake_sleep,NULL);
   thread_tick(); 
-  //thread_tick ();
 }
+
 
 /*
 static void
