@@ -32,9 +32,23 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+/*
+  Comparator function for waiters list in a semaphore
+*/
 bool less_waiters (const struct list_elem *, const struct list_elem*,void * aux);
+
+/*
+  Comparator function for waiters list in a sempahore_elem
+  used in condition variable
+*/
 bool less_cond_waiters(const struct list_elem *, const struct list_elem * , void * aux);
+/*
+  Donates priority when acquiring lock
+*/
 void donate_priority (struct lock *);
+/*
+  Releases priority when releasing lock
+*/
 void release_priority (struct lock *);
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
@@ -73,7 +87,6 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      //list_push_back (&sema->waiters, &thread_current ()->elem);
       list_insert_ordered(&sema->waiters,&thread_current()->elem,less_waiters,NULL);
       thread_block ();
     }
@@ -134,8 +147,10 @@ sema_up (struct semaphore *sema)
   struct thread * t = NULL;
   if (!list_empty (&sema->waiters))
   {
-    //TODO: Remove sorting, exhaustive
-    // is_sorted OR re-insert 
+    /*
+    TODO: Remove sorting, exhaustive
+    is_sorted OR re-insert
+    */
     list_sort(&sema->waiters, less_waiters,NULL);
     t = list_entry(list_pop_back(&sema->waiters),struct thread, elem);
     thread_unblock(t);
@@ -261,14 +276,11 @@ donate_priority(struct lock* lock)
   
   while (l_curr!=NULL && i != 8)
   { 
-    // TODO: It can't be NULL otherwise we wouldn't have reached here
-    if(l_curr->holder == NULL)
-      return;
     if(t_curr->priority <= l_curr->holder->priority)
       return;
     // When priority is updated, thread should be re-inserted in sema_waiters list
     // AND ready_list
-    // Shortcut: In sema_up, sort sema_waiters and then pop
+    // Shortcut: In sema_up, sort sema_waiters and then pop (implemented currently)
     l_curr->holder->priority= t_curr->priority;
     t_curr = l_curr->holder;
     l_curr = l_curr->holder->wait_lock;
