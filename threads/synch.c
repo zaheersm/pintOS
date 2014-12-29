@@ -133,6 +133,9 @@ sema_up (struct semaphore *sema)
   struct thread * t = NULL;
   if (!list_empty (&sema->waiters))
   {
+    //TODO: Remove sorting, exhaustive
+    // is_sorted OR re-insert 
+    list_sort(&sema->waiters, less_waiters,NULL);
     t = list_entry(list_pop_back(&sema->waiters),struct thread, elem);
     thread_unblock(t);
   }
@@ -262,7 +265,9 @@ donate_priority(struct lock* lock)
       return;
     if(t_curr->priority <= l_curr->holder->priority)
       return;
-    
+    // When priority is updated, thread should be re-inserted in sema_waiters list
+    // AND ready_list
+    // Shortcut: In sema_up, sort sema_waiters and then pop
     l_curr->holder->priority= t_curr->priority;
     t_curr = l_curr->holder;
     l_curr = l_curr->holder->wait_lock;
