@@ -90,21 +90,7 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-    /* PS
-    Each thread will keep a list of threads it has donated priority.
-    Whenever this thread recieves donation, it updates the donation
-    of threads in donee_elem
-    This will allow us to enable recursion in donation
-    Whenever this thread gets scheduled, it empties the list
     
-    original_priority will help us in restoring the priority
-    of a the thread
-    */
-    int original_priority;
-    
-    struct lock * wait_lock;
-    struct list donors_list;
-    struct list_elem donor_elem;
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     
@@ -112,16 +98,47 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
-    
-    /* For keeping track of sleep_time */
-    int64_t sleep_time;
+  	
+		/* DATA STRUCTURES FOR ALARM CLOCK */  
+		    
+		int64_t sleep_time;
     struct list_elem sleep_list_elem;
+		
+		/* DATA STRUCTURES FOR PRIORITY SCHEDULING */   
+		 
+		/*
+    original_priority - 
+    To restore priority after releasing donated/received priority
+    */
+    int original_priority;
     
-    int recent_cpu;
-    int nice;
-    /* Owned by thread.c. */
+    /* 
+    To determine the lock the thread is waiting for if any
+    It would allow us to recursively/iteratively donate priority
+    */
+    struct lock * wait_lock;
+
+    /*
+    List of possible donor threads
+    It would allow the thread to release the donated/received priority 
+    when releasing the lock, by clearing the wait_lock element
+    of the donor threads waiting on the currently released lock
+    */
+    struct list donors_list;
+  
+    /*
+    donor_elem would allow this thread to add itself to the donors list
+    of the thread it is donating priority
+    */
+    struct list_elem donor_elem;    
+		
+		/* DATA STRUCTURES FOR ADVANCED SCHEDULER */
+		int recent_cpu;                     /* Recent CPU Acquisition */
     
-    unsigned magic;                     /* Detects stack overflow. */
+    int nice;                           /* Nice-ness of this thread 
+                                           to let go CPU for others */
+    
+		unsigned magic;                     /* Detects stack overflow. */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -159,5 +176,4 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-void update_priority(struct thread *, void *);
 #endif /* threads/thread.h */
