@@ -91,7 +91,6 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  //int64_t start = timer_ticks ();
   if (ticks<=0)
     return;
   
@@ -100,16 +99,17 @@ timer_sleep (int64_t ticks)
   enum intr_level old_level = intr_disable();
   
   struct thread * current_thread = thread_current();
-
+  
+  /* Sets the sleep_time [When to wake this thread up] to current time + ticks */
   current_thread->sleep_time = ticks + timer_ticks();  
+  
+  /* Insert this thread in global sleep list in order w.r.t sleep time */
   list_insert_ordered(&sleep_list,&current_thread->sleep_list_elem,less,NULL);
   
   thread_block();
   
   intr_set_level(old_level);
 
-  //while (timer_elapsed (start) < ticks) 
-  //  thread_yield ();
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -187,27 +187,16 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+  /* Wake up sleeping threads that are eligible
+    i.e. sleep_time <= ticks */
   wake_sleep();
   thread_tick(); 
 }
 
+/* Loops over the sleep list and wakes up eligible threads 
+  Terminates if a thread has greater sleep_time than current val of ticks
+  because sleep_list is ordered */
 
-/*
-static void
-wake_sleep (struct thread *thread,void * aux) 
-{
-  if (thread->status == THREAD_BLOCKED) 
-  {
-    if (thread->sleep_time > 0) 
-    {
-      thread->sleep_time--;
-      if(thread->sleep_time == 0)
-       thread_unblock(thread);
-    }
-  }
-
-}
-*/
 static void
 wake_sleep() 
 {
@@ -229,6 +218,7 @@ wake_sleep()
 
 }
 
+/* Comparator function to insert in order in sleep list */
 bool 
 less (const struct list_elem * elem,const struct list_elem * e, void * aux)
 {
