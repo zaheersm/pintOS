@@ -20,7 +20,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-
+struct child * get_child(tid_t,struct thread *);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -43,10 +43,15 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
+  {
     palloc_free_page (fn_copy); 
-  
-  child.id = tid;
-  child.flag = 0;
+    return tid; 
+  }
+
+  struct child * child = malloc (sizeof(struct child));
+  sema_init(&child->sem,0);
+  child->id = tid;
+  list_push_back(&thread_current()->children,&child->elem);
   return tid;
 }
 
@@ -94,14 +99,17 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  if (child.id == child_tid)
-  {  
-    if (child.flag == 0)
-      thread_yield();
-  }
-  else
-    printf("we are fucked\n");
-  return -1;
+  if(list_empty(&thread_current()->children))
+    return -1;
+  
+  struct child * child = get_child(child_tid,thread_current());
+
+  if(child == NULL)
+    return -1;
+  
+  sema_down(&child->sem);
+  
+  return child->ret_val; 
 }
 
 /* Free the current process's resources. */
@@ -537,4 +545,17 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+struct child * get_child(tid_t id,struct thread * curr)
+{
+  struct list_elem * e;
+  for (e=list_begin(&curr->children);
+    e!=list_end(&curr->children);e=list_next(e))
+  {
+    struct child * child = list_entry(e,struct child,elem);
+    if(child->id == id)
+      return child;
+  }
+  return NULL;
 }

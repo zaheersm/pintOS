@@ -141,6 +141,10 @@ struct thread
 		int exit_code;
     struct list file_list;
     int fd_count;
+    
+    struct list children;
+    struct thread * parent;
+    
     unsigned magic;                     /* Detects stack overflow. */
   };
 

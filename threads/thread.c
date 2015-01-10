@@ -290,6 +290,7 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
   t->fd_count =1;
+  t->parent = thread_current();
   list_init (&t->file_list);
   /* recent_cpu and nice values of newly created 
       thread are inherited from parent thread */
@@ -722,6 +723,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->recent_cpu = 0;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+  list_init(&t->children);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

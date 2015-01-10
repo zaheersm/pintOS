@@ -8,13 +8,13 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (void);
 
-struct child_process 
+struct child 
 {
   tid_t id;
-  int flag;
-
+  int ret_val;
+  struct semaphore sem;
+  struct list_elem elem;
 };
 
-struct child_process child;
 
 #endif /* userprog/process.h */

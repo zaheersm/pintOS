@@ -16,13 +16,16 @@ void halt(void);
 bool create (const char *, unsigned);
 int open (const char * file);
 int read (int, void *, unsigned);
+int write (int,const void *, unsigned);
+void seek(int,unsigned);
+unsigned tell (int);
 void close (int fd);
 int filesize (int fd);
-int write(int,const void *, unsigned);
 void exit(int);
 bool valid (void * vaddr);
 void kill (void);
 struct file_desc * get_file(int);
+
 struct file_desc
 {
   struct file * fp;
@@ -101,6 +104,21 @@ syscall_handler (struct intr_frame *f)
         kill();
       f->eax = write(*(p+5),*(p+6),*(p+7));
       break;
+    
+    case SYS_SEEK:
+      if(!valid(p+4) || !valid(p+5))
+        kill();
+
+      seek(*(p+4),*(p+5));
+      break;
+    
+    case SYS_TELL:
+      if(!valid(p+1))
+        kill();
+      
+      f->eax = tell(*(p+1));
+      break;
+    
     case SYS_EXIT:
       if(!valid(p+1))
         kill();
@@ -111,8 +129,6 @@ syscall_handler (struct intr_frame *f)
       printf("No match\n");
   }
 
-  if (thread_tid () == child.id)
-    child.flag = 1;
   //thread_exit ();
 }
 
@@ -138,6 +154,18 @@ int write (int fd, const void *buffer, unsigned length)
 
 void exit (int status)
 {
+  struct thread * parent = thread_current()->parent;
+
+  if (!list_empty(&parent->children))
+  {
+    struct child * child = get_child(thread_current()->tid,parent);
+
+    if (child!=NULL)
+    {
+      child->ret_val=status;
+      sema_up(&child->sem);
+    }
+  }
   thread_current()->exit_code = status;
   thread_exit();
 }
@@ -167,19 +195,11 @@ int open (const char * file)
 
 int filesize (int fd)
 {
-  struct thread * curr = thread_current();
-  struct list_elem * e;
-
-  for ( e = list_begin (&curr->file_list); 
-    e != list_end (&curr->file_list); e = list_next(e))
-  {
-    struct file_desc * fd_elem = list_entry(e, struct file_desc, elem);
-    
-    if (fd_elem->fd == fd)
-      return file_length(fd_elem->fp);
-  }
-
-  return -1;
+  struct file_desc * fd_elem = get_file(fd);
+  if(fd_elem == NULL)
+    return -1;
+  
+  return file_length(fd_elem->fp);
 }
 
 int read (int fd, void * buffer, unsigned length)
@@ -202,6 +222,26 @@ int read (int fd, void * buffer, unsigned length)
   return file_read (fd_elem->fp, buffer, length);
 }
 
+void seek (int fd, unsigned position)
+{
+  struct file_desc * fd_elem = get_file(fd);
+
+  if (fd_elem == NULL)
+    return;
+
+  file_seek(fd_elem->fp,position);
+}
+
+unsigned tell (int fd)
+{
+  struct file_desc * fd_elem = get_file(fd);
+
+  if (fd_elem == NULL)
+    return -1;
+
+  return file_tell(fd_elem->fp);
+}
+
 void close (int fd)
 {
   struct thread * curr = thread_current();
@@ -216,6 +256,7 @@ void close (int fd)
     {
       file_close(fd_elem->fp);
       list_remove(&fd_elem->elem);
+      free(fd_elem);
       break;
     }
   }
@@ -230,6 +271,19 @@ bool valid(void * vaddr)
 
 void kill () 
 {
+    struct thread * parent = thread_current()->parent;
+
+    if(!list_empty(&parent->children))
+    {
+      struct child * child = get_child(thread_current()->tid,parent);
+
+      if(child!= NULL)
+      {
+        child->ret_val = -1;
+        sema_up(&child->sem); 
+      }
+    }
+  
     thread_current()->exit_code = -1;
     thread_exit();
 }
