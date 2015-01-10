@@ -139,7 +139,8 @@ struct thread
                                            to let go CPU for others */
     
 		int exit_code;
-
+    struct list file_list;
+    int fd_count;
     unsigned magic;                     /* Detects stack overflow. */
   };
 

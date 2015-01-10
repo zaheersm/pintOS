@@ -289,6 +289,8 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  t->fd_count =1;
+  list_init (&t->file_list);
   /* recent_cpu and nice values of newly created 
       thread are inherited from parent thread */
 
