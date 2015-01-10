@@ -138,7 +138,9 @@ struct thread
     int nice;                           /* Nice-ness of this thread 
                                            to let go CPU for others */
     
-		unsigned magic;                     /* Detects stack overflow. */
+		int exit_code;
+
+    unsigned magic;                     /* Detects stack overflow. */
   };
 
 /* If false (default), use round-robin scheduler.

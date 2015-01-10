@@ -113,7 +113,7 @@ process_exit (void)
   
   /* Printing Exit message */
   int exit_code = 0;
-  printf("%s: exit(%d)\n",cur->name,exit_code);
+  printf("%s: exit(%d)\n",cur->name,cur->exit_code);
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -240,8 +240,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   
   /* Open executable file. */
   char * fn_cp = malloc (strlen(file_name)+1);
-  strlcpy(fn_cp, file_name, strlen(file_name));
-  
+  strlcpy(fn_cp, file_name, strlen(file_name)+1);
   char * save_ptr;
   fn_cp = strtok_r(fn_cp," ",&save_ptr);
   file = filesys_open (fn_cp);
@@ -252,7 +251,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
-
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
