@@ -12,7 +12,7 @@ struct child
 {
   tid_t id;
   int ret_val;
-  bool used;
+  int used;
   struct list_elem elem;
 };
 

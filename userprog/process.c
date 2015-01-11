@@ -54,7 +54,7 @@ process_execute (const char *file_name)
   }
   struct child * child = malloc (sizeof(struct child));
   child->id = tid;
-  child->used = false;
+  child->used = 0;
   list_push_back(&thread_current()->children,&child->elem);
   sema_down(&thread_current()->production_sem);  
   if (thread_current()->production_flag == false)
@@ -126,7 +126,7 @@ process_wait (tid_t child_tid UNUSED)
 
 
   thread_current()->waiton_child = child->id;
-  if (child->used == false)
+  if (child->used != 1)
     sema_down(&thread_current()->child_sem);
   
   list_remove(&child->elem);
@@ -145,44 +145,34 @@ process_exit (void)
   
   printf("%s: exit(%d)\n",cur->name,cur->exit_code);
   /* Printing Exit message */
-  struct list_elem * e;
   lock_acquire(&big_lock);
   if (thread_current()->file != NULL)
     file_close(thread_current()->file);
   lock_release(&big_lock);
-  int size = list_size(&thread_current()->children);
-  struct child ** child_ary = malloc (sizeof(struct child *)*size);
-  int i =0;
-  for (e = list_begin(&thread_current()->children);
-  e!=list_end(&thread_current()->children);e=list_next(e))
+  struct list_elem * e;
+  
+	while(!list_empty(&thread_current()->children))
   {
+    e = list_pop_front(&thread_current()->children);
+
     struct child * child = list_entry(e,struct child,elem);
     list_remove(e);
-    child_ary[i++] = child;
+    free(child);
+
   }
 
-  for (i = 0; i< size; i++)
-    free(child_ary[i]);
-  free(child_ary);  
-  
-  
-  size= list_size(&thread_current()->file_list);
-  struct file_desc ** ary = malloc (sizeof(struct file_desc *)*size);
-  for (e=list_begin(&thread_current()->file_list);
-   e!=list_end(&thread_current()->file_list);e=list_next(e))
+	while(!list_empty(&thread_current()->file_list))
   {
-    struct file_desc * fd_elem = list_entry(e, struct file_desc,elem);
+    e = list_pop_front(&thread_current()->file_list);
+    struct file_desc * fd_elem = list_entry(e,struct file_desc,elem);
     lock_acquire(&big_lock);
     file_close(fd_elem->fp);
     lock_release(&big_lock);
+
     list_remove(e);
-    ary[i++] = fd_elem;
-  }
+    free(fd_elem);
+  }  
   
-  i =0;
-  for (i = 0; i<size;i++)
-    free(ary[i]);
-  free(ary);
   ASSERT(list_empty(&thread_current()->file_list));
   ASSERT(list_empty(&thread_current()->children));
   //lock_release(&big_lock);

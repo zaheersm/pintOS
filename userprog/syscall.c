@@ -195,7 +195,7 @@ void exit (int status)
     {
       child->ret_val=status;
       thread_current()->exit_code = status;
-      child->used = true;
+      child->used = 1;
       if (thread_current()->parent->waiton_child 
               == thread_current()->tid)
         sema_up(&thread_current()->parent->child_sem);
@@ -376,8 +376,9 @@ void kill ()
       {
         child->ret_val = -1;
         thread_current()->exit_code=-1;
-        child->used = true;
-        if (thread_current()->parent->waiton_child == child->id)
+        child->used = 1;
+        if (thread_current()->parent->waiton_child 
+                == thread_current()->tid)
           sema_up(&thread_current()->parent->child_sem); 
       }
     }
