@@ -40,53 +40,29 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
   process_name=fn_copy+strlen(fn_copy)+1;
-  //process_name = malloc(sizeof(file_name)+1);
-  //process_name = palloc_get_page(0);
-  //printf("process_name %p\nfn_copy%p\nfile_name%p\n",process_name
-  //,fn_copy,file_name);
-  //if(process_name == NULL)
-   // return TID_ERROR;
 
   memcpy(process_name,file_name,strlen(file_name)+1);
 
   char *save_ptr;
-  //printf("1 here %s\n",thread_current()->name);
-  //printf("process_name add %p\n",process_name);
-  //printf("HEre\n");
   process_name = strtok_r (process_name," ",&save_ptr);
-  //printf("H\n");
-  //printf("Here process_name %s\n",process_name);
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
-  //free(process_name); 
-  //palloc_free_page(process_name);
-  //printf("\n%s Here before free\n",thread_current()->name);
-  //free(process_name);
   if (tid == TID_ERROR)
   {
-    //printf("\n\nhurah\n\n\n");
     palloc_free_page (fn_copy); 
-    //free(process_name);
     return tid; 
   }
-  //printf("\n%s4\n",thread_current()->name); 
   struct child * child = malloc (sizeof(struct child));
-  sema_init(&child->sem,0);
   child->id = tid;
+  child->used = false;
   list_push_back(&thread_current()->children,&child->elem);
-  //printf("Before sema up\n");
   sema_down(&thread_current()->production_sem);  
-  //printf("Here after sema down\n");
   if (thread_current()->production_flag == false)
   {
     list_remove(&child->elem);
     free(child);
-    //free(process_name);
-    //palloc_free_page(fn_copy);
     return -1;
   }
-  //free(process_name);
-  //printf("\n%s6\n",thread_current()->name);
   return tid;
 }
 
@@ -95,8 +71,6 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  //printf("In start process %s\n",thread_current()->name);
-  //printf("In start_process %p\n",file_name_);
   
   char *file_name = file_name_;
   struct intr_frame if_;
@@ -108,11 +82,9 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-  //printf("\nAFter load succcess | Freeing file_name\n");
   /* If load failed, quit. */
   palloc_free_page (file_name);
   
-  //printf("After freed\n");
   if (!success)
   {
     thread_current()->exit_code = -1;
@@ -122,7 +94,6 @@ start_process (void *file_name_)
   }
   thread_current()->parent->production_flag = true;
   sema_up(&thread_current()->parent->production_sem);
-  //printf("\n\nEnd of process_start %s\n",thread_current()->name);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -147,40 +118,38 @@ process_wait (tid_t child_tid UNUSED)
 {
   if(list_empty(&thread_current()->children))
     return -1;
-  //printf("\n\n\nCalling get child\n\n\n");
-  //printf("thread curr in get child %p\n",thread_current()); 
   struct child * child = get_child(child_tid,thread_current());
 
   if(child == NULL){
     return -1;
   }
+
+
+  thread_current()->waiton_child = child->id;
+  if (child->used == false)
+    sema_down(&thread_current()->child_sem);
   
-  sema_down(&child->sem);
   list_remove(&child->elem);
   int ret = child->ret_val;
   free(child);
 
   return ret;
-  //return child->ret_val; 
 }
 
 /* Free the current process's resources. */
 void
 process_exit (void)
 {
-  //printf("In proces_exit %s\n",thread_current()->name);
   struct thread *cur = thread_current ();
   uint32_t *pd;
   
   printf("%s: exit(%d)\n",cur->name,cur->exit_code);
   /* Printing Exit message */
-  //printf("%s Before close\n",thread_current()->name);
-	//printf("In lock %s\n",thread_current()->name);
   struct list_elem * e;
   lock_acquire(&big_lock);
   if (thread_current()->file != NULL)
     file_close(thread_current()->file);
-  //lock_release(&big_lock);
+  lock_release(&big_lock);
   int size = list_size(&thread_current()->children);
   struct child ** child_ary = malloc (sizeof(struct child *)*size);
   int i =0;
@@ -188,7 +157,6 @@ process_exit (void)
   e!=list_end(&thread_current()->children);e=list_next(e))
   {
     struct child * child = list_entry(e,struct child,elem);
-    //free(child);
     list_remove(e);
     child_ary[i++] = child;
   }
@@ -196,18 +164,17 @@ process_exit (void)
   for (i = 0; i< size; i++)
     free(child_ary[i]);
   free(child_ary);  
-  //lock_acquire(&big_lock);
-  //file_close(thread_current()->file);
   
   
   size= list_size(&thread_current()->file_list);
   struct file_desc ** ary = malloc (sizeof(struct file_desc *)*size);
-  //int i =0;
   for (e=list_begin(&thread_current()->file_list);
    e!=list_end(&thread_current()->file_list);e=list_next(e))
   {
     struct file_desc * fd_elem = list_entry(e, struct file_desc,elem);
+    lock_acquire(&big_lock);
     file_close(fd_elem->fp);
+    lock_release(&big_lock);
     list_remove(e);
     ary[i++] = fd_elem;
   }
@@ -218,8 +185,7 @@ process_exit (void)
   free(ary);
   ASSERT(list_empty(&thread_current()->file_list));
   ASSERT(list_empty(&thread_current()->children));
-  lock_release(&big_lock);
-  //printf("%s: exit(%d)\n",cur->name,cur->exit_code);
+  //lock_release(&big_lock);
   
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

@@ -145,11 +145,12 @@ struct thread
     struct list children;
     struct thread * parent;
     
-    struct semaphore production_sem;
     bool production_flag;
-    
+    struct semaphore production_sem;
     struct file * file;
     
+    struct semaphore child_sem;
+    tid_t waiton_child;
     
     unsigned magic;                     /* Detects stack overflow. */
   };

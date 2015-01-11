@@ -12,7 +12,7 @@ struct child
 {
   tid_t id;
   int ret_val;
-  struct semaphore sem;
+  bool used;
   struct list_elem elem;
 };
 

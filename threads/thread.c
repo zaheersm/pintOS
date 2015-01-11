@@ -328,7 +328,8 @@ thread_create (const char *name, int priority,
      then parent thread yield */
   old_level = intr_disable();
   if (thread_current()->priority < t->priority)
-    thread_yield();
+    if (!intr_context())
+      thread_yield();
   intr_set_level(old_level);
   
   return tid;
@@ -505,7 +506,8 @@ thread_set_priority (int new_priority)
   struct list_elem * e = list_back (&ready_list);
   struct thread * t = list_entry(e, struct thread, elem);
   if ( new_priority < t->priority)
-    thread_yield();
+    if(!intr_context())
+      thread_yield();
   intr_set_level(old_level);  
 }
 
@@ -531,7 +533,8 @@ thread_set_nice (int nice UNUSED)
     struct list_elem * e = list_back (&ready_list);
     struct thread * t = list_entry(e, struct thread, elem);
     if ( thread_current()->priority < t->priority)
-      thread_yield();
+      if(!intr_context())
+        thread_yield();
   }
   intr_set_level(old_level);
 }
@@ -725,6 +728,7 @@ init_thread (struct thread *t, const char *name, int priority)
   list_push_back (&all_list, &t->allelem);
   list_init(&t->children);
   sema_init(&t->production_sem,0);
+  sema_init(&t->child_sem,0);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

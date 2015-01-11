@@ -184,7 +184,7 @@ int write (int fd, const void *buffer, unsigned length)
 
 void exit (int status)
 {
-  //printf("In exit thread %p\n",thread_current());
+  //printf("In exit thread %s id %d\n",thread_current()->name,thread_current()->tid);
   struct thread * parent = thread_current()->parent;
   struct child * child;
   if (!list_empty(&parent->children))
@@ -195,7 +195,11 @@ void exit (int status)
     {
       child->ret_val=status;
       thread_current()->exit_code = status;
-      sema_up(&child->sem);
+      child->used = true;
+      if (thread_current()->parent->waiton_child 
+              == thread_current()->tid)
+        sema_up(&thread_current()->parent->child_sem);
+        
     }
   }
 
@@ -330,6 +334,9 @@ unsigned tell (int fd)
 
 void close (int fd)
 {
+  if (fd == STDIN_FILENO)
+    return;
+  
   struct thread * curr = thread_current();
   struct list_elem * e;
 
@@ -369,7 +376,9 @@ void kill ()
       {
         child->ret_val = -1;
         thread_current()->exit_code=-1;
-        sema_up(&child->sem); 
+        child->used = true;
+        if (thread_current()->parent->waiton_child == child->id)
+          sema_up(&thread_current()->parent->child_sem); 
       }
     }
   
