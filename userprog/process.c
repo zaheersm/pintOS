@@ -157,7 +157,11 @@ process_wait (tid_t child_tid UNUSED)
   
   sema_down(&child->sem);
   list_remove(&child->elem);
-  return child->ret_val; 
+  int ret = child->ret_val;
+  free(child);
+
+  return ret;
+  //return child->ret_val; 
 }
 
 /* Free the current process's resources. */
@@ -176,37 +180,47 @@ process_exit (void)
   lock_acquire(&big_lock);
   if (thread_current()->file != NULL)
     file_close(thread_current()->file);
-  lock_release(&big_lock);
-  /*for (e = list_begin(&thread_current()->children);
+  //lock_release(&big_lock);
+  int size = list_size(&thread_current()->children);
+  struct child ** child_ary = malloc (sizeof(struct child *)*size);
+  int i =0;
+  for (e = list_begin(&thread_current()->children);
   e!=list_end(&thread_current()->children);e=list_next(e))
   {
     struct child * child = list_entry(e,struct child,elem);
-    free(child);
+    //free(child);
     list_remove(e);
-  }*/
-  /*lock_acquire(&big_lock);
+    child_ary[i++] = child;
+  }
+
+  for (i = 0; i< size; i++)
+    free(child_ary[i]);
+  free(child_ary);  
+  //lock_acquire(&big_lock);
   //file_close(thread_current()->file);
+  
+  
+  size= list_size(&thread_current()->file_list);
+  struct file_desc ** ary = malloc (sizeof(struct file_desc *)*size);
+  //int i =0;
   for (e=list_begin(&thread_current()->file_list);
    e!=list_end(&thread_current()->file_list);e=list_next(e))
   {
     struct file_desc * fd_elem = list_entry(e, struct file_desc,elem);
     file_close(fd_elem->fp);
     list_remove(e);
-    free(fd_elem);
+    ary[i++] = fd_elem;
   }
-
+  
+  i =0;
+  for (i = 0; i<size;i++)
+    free(ary[i]);
+  free(ary);
   ASSERT(list_empty(&thread_current()->file_list));
-  //ASSERT(list_empty(&thread_current()->children));
-  if(thread_current()->file != NULL)
-  {
-    //printf("%p thread_current()->file\n",thread_current()->file);
-    //printf("%s Just bef\n",thread_current()->name);
-    file_close(thread_current()->file);
-    //printf("%s right after\n",thread_current()->name);
-  }
-  lock_release(&big_lock);*/
-  //printf("%s After close\n",thread_current()->name);
+  ASSERT(list_empty(&thread_current()->children));
+  lock_release(&big_lock);
   //printf("%s: exit(%d)\n",cur->name,cur->exit_code);
+  
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
  
