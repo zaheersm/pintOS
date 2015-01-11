@@ -8,14 +8,13 @@
 #include "threads/vaddr.h"
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
-//#include "filesys/inode.c"
-//struct file_desc;
 
 static void syscall_handler (struct intr_frame *);
 void halt(void);
 tid_t exec (const char * cmd_line);
 int wait(tid_t);
 bool create (const char *, unsigned);
+bool remove(const char *);
 int open (const char * file);
 int read (int, void *, unsigned);
 int write (int,const void *, unsigned);
@@ -61,8 +60,6 @@ syscall_handler (struct intr_frame *f)
   int * p = f->esp;
   //hex_dump(p,p,64,true);
  
-  //printf("Esp %p\n",p); 
-  // First 4 bytes represent sys
   int syscall_number = *p;
  
   switch (syscall_number)
@@ -87,7 +84,12 @@ syscall_handler (struct intr_frame *f)
     
       f->eax = create (*(p+4), *(p+5));
       break;
-    
+    case SYS_REMOVE:
+      if(!valid(p+1) || !valid(*(p+1)))
+        kill();
+
+      f->eax = remove(*(p+1));
+      break;
     case SYS_OPEN:
       if(!valid (p+1) || !valid(*(p+1)))
         kill();
@@ -103,9 +105,11 @@ syscall_handler (struct intr_frame *f)
       break;
 
     case SYS_READ:
+      //printf("Enter case read\n");
       if (!valid(p+5) || !valid (p+6) || !valid (p+7) || !valid (*(p+6)))
         kill();
       f->eax=read(*(p+5),*(p+6),*(p+7));
+      //printf("Exit case read\n");
       break;
     
     case SYS_CLOSE:
@@ -115,9 +119,12 @@ syscall_handler (struct intr_frame *f)
       break;
     
     case SYS_WRITE:
-      if (!valid(p+5) || !valid(p+6) || !valid (p+7)|| !valid(*(p+6)))
+      //printf("Enter write case\n");
+      if (!valid(p+5) || !valid(p+6) || 
+            !valid (p+7)|| !valid(*(p+6)))
         kill();
       f->eax = write(*(p+5),*(p+6),*(p+7));
+      //printf("Done write case\n");
       break;
     
     case SYS_SEEK:
@@ -158,15 +165,21 @@ int write (int fd, const void *buffer, unsigned length)
 {
   if (fd == STDOUT_FILENO)
   {
+    //lock_acquire(&big_lock);
     putbuf(buffer,length);
+    //lock_release(&big_lock);
     return length;
   }
 
   struct file_desc * fd_elem = get_file(fd);
   if(fd_elem == NULL)
     return -1;
-
-  return file_write(fd_elem->fp,buffer,length);
+  
+  lock_acquire(&big_lock);
+  int ret = file_write(fd_elem->fp,buffer,length);
+  lock_release(&big_lock);
+  return ret;
+  //return file_write(fd_elem->fp,buffer,length);
 }
 
 void exit (int status)
@@ -193,11 +206,11 @@ void exit (int status)
 tid_t exec (const char * cmd_line)
 {
   lock_acquire(&big_lock);
-  char * file_name;
-  file_name = malloc(sizeof(strlen(cmd_line)+1));
-  strlcpy(file_name,cmd_line);
-  tid_t tid = process_execute(file_name);
-  free(file_name);
+  //char * file_name;
+  //file_name = malloc(sizeof(strlen(cmd_line)+1));
+  //strlcpy(file_name,cmd_line);
+  tid_t tid = process_execute(cmd_line);
+  //free(file_name);
   lock_release(&big_lock);
   return tid;
 }
@@ -213,13 +226,32 @@ bool create (const char * file, unsigned initial_size)
 {
   if (file == NULL)
     return -1;
-  return  filesys_create(file,initial_size);
+  
+  lock_acquire(&big_lock);
+  int ret = filesys_create(file,initial_size);
+  lock_release(&big_lock);
+  
+  return ret;
 }
+
+bool remove (const char * file)
+{
+
+  if (file == NULL)
+    return -1;
+  lock_acquire(&big_lock);
+  bool flag = filesys_remove(file);
+  lock_release(&big_lock);
+
+  return flag;
+}
+
 
 int open (const char * file)
 {
+  lock_acquire(&big_lock);
   struct file * fp = filesys_open (file);
-  
+  lock_release(&big_lock);
   if (fp == NULL)
   { 
     return -1;
@@ -237,28 +269,37 @@ int filesize (int fd)
   struct file_desc * fd_elem = get_file(fd);
   if(fd_elem == NULL)
     return -1;
-  
-  return file_length(fd_elem->fp);
+  lock_acquire(&big_lock);
+  int length = file_length(fd_elem->fp); 
+  lock_release(&big_lock);
+  return length;
 }
 
 int read (int fd, void * buffer, unsigned length)
 {
   int i =0;
-  
+   
   if (fd == STDIN_FILENO)
-  {
+  { 
+    //lock_acquire(&big_lock);
     while (i < length)
     {
       *((char *)buffer+i) = input_getc();
       i++;
     }
+    //lock_release(&big_lock);
     return i;
   }
 
   struct file_desc * fd_elem = get_file(fd);
   if (fd_elem == NULL)
     return -1;
-  return file_read (fd_elem->fp, buffer, length);
+  
+  lock_acquire(&big_lock);
+  int len = file_read(fd_elem->fp,buffer,length);
+  lock_release(&big_lock);
+  return len;
+  //return file_redd`ad (fd_elem->fp, buffer, length);
 }
 
 void seek (int fd, unsigned position)
@@ -267,8 +308,10 @@ void seek (int fd, unsigned position)
 
   if (fd_elem == NULL)
     return;
-
+  
+  lock_acquire(&big_lock);
   file_seek(fd_elem->fp,position);
+  lock_release(&big_lock);
 }
 
 unsigned tell (int fd)
@@ -277,8 +320,12 @@ unsigned tell (int fd)
 
   if (fd_elem == NULL)
     return -1;
-
-  return file_tell(fd_elem->fp);
+  
+  lock_acquire(&big_lock);
+  unsigned pos = file_tell (fd_elem->fp);
+  lock_release(&big_lock);
+  return pos;
+  //return file_tell(fd_elem->fp);
 }
 
 void close (int fd)
@@ -321,11 +368,12 @@ void kill ()
       if(child!= NULL)
       {
         child->ret_val = -1;
+        thread_current()->exit_code=-1;
         sema_up(&child->sem); 
       }
     }
   
-    thread_current()->exit_code = -1;
+    //thread_current()->exit_code = -1;
     thread_exit();
 }
 

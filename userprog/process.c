@@ -29,37 +29,44 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
-  //char *process_name;
+  char *process_name;
   tid_t tid;
   
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
-
+  
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-  
+  process_name=fn_copy+strlen(fn_copy)+1;
   //process_name = malloc(sizeof(file_name)+1);
-  
+  //process_name = palloc_get_page(0);
+  //printf("process_name %p\nfn_copy%p\nfile_name%p\n",process_name
+  //,fn_copy,file_name);
   //if(process_name == NULL)
-  //  return TID_ERROR;
+   // return TID_ERROR;
 
-  //strlcpy(process_name,file_name,strlen(file_name)+1);
+  memcpy(process_name,file_name,strlen(file_name)+1);
 
   char *save_ptr;
   //printf("1 here %s\n",thread_current()->name);
   //printf("process_name add %p\n",process_name);
-  file_name = strtok_r (file_name," ",&save_ptr);
+  //printf("HEre\n");
+  process_name = strtok_r (process_name," ",&save_ptr);
+  //printf("H\n");
   //printf("Here process_name %s\n",process_name);
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
+  //free(process_name); 
+  //palloc_free_page(process_name);
   //printf("\n%s Here before free\n",thread_current()->name);
   //free(process_name);
   if (tid == TID_ERROR)
   {
     //printf("\n\nhurah\n\n\n");
     palloc_free_page (fn_copy); 
+    //free(process_name);
     return tid; 
   }
   //printf("\n%s4\n",thread_current()->name); 
@@ -67,14 +74,18 @@ process_execute (const char *file_name)
   sema_init(&child->sem,0);
   child->id = tid;
   list_push_back(&thread_current()->children,&child->elem);
+  //printf("Before sema up\n");
   sema_down(&thread_current()->production_sem);  
+  //printf("Here after sema down\n");
   if (thread_current()->production_flag == false)
   {
     list_remove(&child->elem);
     free(child);
+    //free(process_name);
+    //palloc_free_page(fn_copy);
     return -1;
   }
-  
+  //free(process_name);
   //printf("\n%s6\n",thread_current()->name);
   return tid;
 }
@@ -85,7 +96,8 @@ static void
 start_process (void *file_name_)
 {
   //printf("In start process %s\n",thread_current()->name);
-  //printf("In start_process\n");
+  //printf("In start_process %p\n",file_name_);
+  
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -328,11 +340,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   strlcpy(fn_cp, file_name, strlen(file_name)+1);
   char * save_ptr;
   //printf("BEFORE LOL\n");
+  //printf("fn_cp tmp%p %s\n",fn_cp,fn_cp); 
   fn_cp = strtok_r(fn_cp," ",&save_ptr);
+  //printf("fn_cp tmp %p %saa\n",fn_cp,fn_cp);
   //printf("AFTER LOL\n");
   //printf("BEFOREOPEN\n");
   //printf("Me %s Name %s\n",thread_current()->name,big_lock.holder->name);
   file = filesys_open (fn_cp);
+  //printf("AFTER OPEN\n");
   free(fn_cp);
   //printf("AFTEROPEN\n");
   //TODO : Free fn_cp
@@ -407,8 +422,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
                                  read_bytes, zero_bytes, writable))
                 goto done;
             }
-          else
-            goto done;
+          else {printf("here\n");
+            goto done;}
           break;
         }
     }
