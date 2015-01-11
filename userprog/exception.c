@@ -71,6 +71,7 @@ exception_print_stats (void)
 static void
 kill (struct intr_frame *f) 
 {
+  printf("\n\n In kill %s \n",thread_current()->name);
   /* This interrupt is one (probably) caused by a user process.
      For example, the process might have tried to access unmapped
      virtual memory (a page fault).  For now, we simply kill the

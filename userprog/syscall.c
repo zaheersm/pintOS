@@ -9,10 +9,12 @@
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
 //#include "filesys/inode.c"
-struct file_desc;
+//struct file_desc;
 
 static void syscall_handler (struct intr_frame *);
 void halt(void);
+tid_t exec (const char * cmd_line);
+int wait(tid_t);
 bool create (const char *, unsigned);
 int open (const char * file);
 int read (int, void *, unsigned);
@@ -26,16 +28,20 @@ bool valid (void * vaddr);
 void kill (void);
 struct file_desc * get_file(int);
 
+//static struct lock big_lock;
+
+/*
 struct file_desc
 {
   struct file * fp;
   int fd;
   struct list_elem elem;
 };
-
+*/
 void
 syscall_init (void) 
 {
+  lock_init(&big_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -65,11 +71,20 @@ syscall_handler (struct intr_frame *f)
       halt();
       break;
 
+    case SYS_EXEC:
+      if(!valid(p+1) || !valid(*(p+1)))
+        kill();
+      f->eax = exec(*(p+1));
+      break;
+    case SYS_WAIT:
+      if(!valid(p+1))
+        kill(); 
+      f->eax = wait(*(p+1));
+      break;
     case SYS_CREATE:
       if(!valid(p+4) || !valid(p+5) || !valid(*(p+4)))
-      {
         kill();
-      }
+    
       f->eax = create (*(p+4), *(p+5));
       break;
     
@@ -126,7 +141,9 @@ syscall_handler (struct intr_frame *f)
       exit(*(p+1));
       break;
     default:
-      printf("No match\n");
+      hex_dump(p,p,64,true);
+      printf("No match sys call\n");
+      break;
   }
 
   //thread_exit ();
@@ -154,20 +171,42 @@ int write (int fd, const void *buffer, unsigned length)
 
 void exit (int status)
 {
+  //printf("In exit thread %p\n",thread_current());
   struct thread * parent = thread_current()->parent;
-
+  struct child * child;
   if (!list_empty(&parent->children))
   {
-    struct child * child = get_child(thread_current()->tid,parent);
+    child = get_child(thread_current()->tid,parent);
 
     if (child!=NULL)
     {
       child->ret_val=status;
+      thread_current()->exit_code = status;
       sema_up(&child->sem);
     }
   }
-  thread_current()->exit_code = status;
+
+  //thread_current()->exit_code = status;
   thread_exit();
+}
+
+tid_t exec (const char * cmd_line)
+{
+  lock_acquire(&big_lock);
+  char * file_name;
+  file_name = malloc(sizeof(strlen(cmd_line)+1));
+  strlcpy(file_name,cmd_line);
+  tid_t tid = process_execute(file_name);
+  free(file_name);
+  lock_release(&big_lock);
+  return tid;
+}
+int wait(tid_t id)
+{
+  //lock_acquire(&big_lock);
+  tid_t tid = process_wait(id);
+ // lock_release(&big_lock);
+  return tid;
 }
 
 bool create (const char * file, unsigned initial_size)
@@ -254,7 +293,9 @@ void close (int fd)
 
     if (fd_elem->fd == fd)
     {
+      lock_acquire(&big_lock);
       file_close(fd_elem->fp);
+      lock_release(&big_lock);
       list_remove(&fd_elem->elem);
       free(fd_elem);
       break;

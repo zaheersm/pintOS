@@ -145,6 +145,12 @@ struct thread
     struct list children;
     struct thread * parent;
     
+    struct semaphore production_sem;
+    bool production_flag;
+    
+    struct file * file;
+    
+    
     unsigned magic;                     /* Detects stack overflow. */
   };
 
