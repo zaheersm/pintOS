@@ -8,6 +8,9 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (void);
 
+/* Child struct to keep track
+   of child processes and their
+   return value */
 struct child 
 {
   tid_t id;

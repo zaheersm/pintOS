@@ -142,27 +142,37 @@ start_process (void *file_name_)
    child of the calling process, or if process_wait() has already
    been successfully called for the given TID, returns -1
    immediately, without waiting.
-
-   This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
+*/
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  /* If current thread has no child alive
+     return -1 */
   if(list_empty(&thread_current()->children))
     return -1;
+  
+  /* If current thread has no child with id = child_tid
+    return -1 */
   struct child * child = get_child(child_tid,thread_current());
 
   if(child == NULL){
     return -1;
   }
 
-
-  thread_current()->waiton_child = child->id;
+  /* Set waiton_child of current thread to child_tid */
+  thread_current()->waiton_child = child_tid;
+  
+  /* If child is still alive i.e. it hasn't updated
+     its parent's child struct, sleep */
   if (child->used != 1)
     sema_down(&thread_current()->child_sem);
   
-  list_remove(&child->elem);
+  ASSERT (child->used == 1);
+  /* Retrieve return value */
   int ret = child->ret_val;
+  
+  /* Remove child from children's list and free its memory */
+  list_remove(&child->elem);
   free(child);
 
   return ret;
@@ -175,27 +185,33 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
   
+  /* Printing exit message */
   printf("%s: exit(%d)\n",cur->name,cur->exit_code);
-  /* Printing Exit message */
+  
+  /* Acquiring file sys lock to close executable file 
+     inorder to make it modifiable */
   lock_acquire(&big_lock);
   if (thread_current()->file != NULL)
     file_close(thread_current()->file);
   lock_release(&big_lock);
-  struct list_elem * e;
   
+  /* Deallocating each child's memory
+     from children's list */
 	while(!list_empty(&thread_current()->children))
   {
-    e = list_pop_front(&thread_current()->children);
+    struct list_elem * e = list_pop_front(&thread_current()->children);
 
     struct child * child = list_entry(e,struct child,elem);
     list_remove(e);
     free(child);
-
   }
+
+  /* Closing all files and deallocating memory
+     of file_desc elements in file_list */
 
 	while(!list_empty(&thread_current()->file_list))
   {
-    e = list_pop_front(&thread_current()->file_list);
+    struct list_elem * e = list_pop_front(&thread_current()->file_list);
     struct file_desc * fd_elem = list_entry(e,struct file_desc,elem);
     lock_acquire(&big_lock);
     file_close(fd_elem->fp);
@@ -207,7 +223,6 @@ process_exit (void)
   
   ASSERT(list_empty(&thread_current()->file_list));
   ASSERT(list_empty(&thread_current()->children));
-  //lock_release(&big_lock);
   
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -340,6 +355,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   strlcpy(fn_cp, file_name, strlen(file_name)+1);
   char * save_ptr;
   fn_cp = strtok_r(fn_cp," ",&save_ptr);
+  /*  Opening executable 
+      It will be kept open until the new process exits
+      OR load fails */
   file = filesys_open (fn_cp);
   free(fn_cp);
    
@@ -427,10 +445,15 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
+  /* Denying writes to executable */
   file_deny_write(file);
+  /* Storing reference of the executable
+     We will have to close it while exiting 
+     inorder to make it modifiable again */
   thread_current()->file = file;
  done:
   /* We arrive here whether the load is successful or not. */
+  /* If load has failed, close the executable file */
   if (success!= true)
     file_close (file);
   return success;

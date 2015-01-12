@@ -90,7 +90,8 @@ kill (struct intr_frame *f)
       printf ("%s: dying due to interrupt %#04x (%s).\n",
               thread_name (), f->vec_no, intr_name (f->vec_no));
       intr_dump_frame (f);
-      //thread_exit();
+      /* If user process has faulted, kill the process swiftly
+         with exit code -1 */
       exit (-1); 
       printf("UNREACHABLE\n");
     case SEL_KCSEG:

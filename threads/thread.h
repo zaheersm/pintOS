@@ -137,19 +137,41 @@ struct thread
     
     int nice;                           /* Nice-ness of this thread 
                                            to let go CPU for others */
+    /* Data Structures for Project 2 : User Programs */
+
+		/* Exit code of this process | 
+       Will be used when printing the exit message  */
+    int exit_code;
     
-		int exit_code;
+    /* List of open files with (fd) -> (file *) mapping */
     struct list file_list;
+    
+    /* Total count of open files
+       Will assist in granting fd to a new file */
     int fd_count;
     
+    /* List of child process in the form of struct child
+       defined in process.h */
     struct list children;
+    
+    /* Reference to parent thread
+       Will be used for passing return status to parent thread */
     struct thread * parent;
     
+    /* A flag to reflect to parent process that child process has
+       been loaded successfully */
     bool production_flag;
+    /* Parent thread needs to sleep until child successfully starts execution 
+       production_sem fulfills this purpose */
     struct semaphore production_sem;
+    
+    /* File pointer to the executable 
+       Executable fileneeds to be closed when exiting */
     struct file * file;
     
+    /* Used when a thread waits for a child */
     struct semaphore child_sem;
+    /* To keep track of the child a thread has been waiting for */
     tid_t waiton_child;
     
     unsigned magic;                     /* Detects stack overflow. */
