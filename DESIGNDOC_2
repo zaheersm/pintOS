@@ -281,7 +281,9 @@ P calls wait(C) before C exits
     C then checks if P's waiton is equal to its tid. 
     If yes, it ups P's child_sem, consequently waking up P.
 
-    P, after waking up, retrieve ret val from 'struct child' of C, removes    C from its children_list, frees its memory and returns the ret value
+    P, after waking up, retrieves ret val from 'struct child' of C, 
+    removes C from its children_list, frees its memory and returns 
+    the ret value
 
 P calls wait(C) after C exits
   - Everything remains same execpt this time P does not sleep by
