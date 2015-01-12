@@ -45,22 +45,24 @@ process_execute (const char *file_name)
 
   char *save_ptr;
   process_name = strtok_r (process_name," ",&save_ptr);
-  /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+
+	/* Create a new thread to execute FILE_NAME. */
+	tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
+  
+	if (tid == TID_ERROR)
   {
     palloc_free_page (fn_copy); 
     return tid; 
   }
-  struct child * child = malloc (sizeof(struct child));
-  child->id = tid;
-  child->used = 0;
-  list_push_back(&thread_current()->children,&child->elem);
-  sema_down(&thread_current()->production_sem);  
+	sema_down(&thread_current()->production_sem);  
   if (thread_current()->production_flag == false)
   {
-    list_remove(&child->elem);
-    free(child);
+    struct child * child = get_child(tid,thread_current());
+    if (child!= NULL)
+    {
+      list_remove(&child->elem);
+      free(child);
+    }
     return -1;
   }
   return tid;

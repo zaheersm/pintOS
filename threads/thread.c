@@ -14,6 +14,7 @@
 #include "threads/fixed_point.h"
 #include "devices/timer.h"
 #include "lib/kernel/list.h"
+#include "userprog/process.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -297,6 +298,11 @@ thread_create (const char *name, int priority,
 
   t->recent_cpu = thread_current()->recent_cpu;
   t->nice = thread_current()->nice;
+  
+  struct child * child = malloc(sizeof(struct child));
+  child->id = tid;
+  child->used = 0;
+  list_push_back(&thread_current()->children,&child->elem);
   
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
