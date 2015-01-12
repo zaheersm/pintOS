@@ -10,36 +10,35 @@
 #include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
+
+/* System Calls */
 void halt(void);
+void exit(int);
 tid_t exec (const char * cmd_line);
 int wait(tid_t);
 bool create (const char *, unsigned);
 bool remove(const char *);
 int open (const char * file);
+int filesize (int fd);
 int read (int, void *, unsigned);
 int write (int,const void *, unsigned);
 void seek(int,unsigned);
 unsigned tell (int);
 void close (int fd);
-int filesize (int fd);
-void exit(int);
+
+/* Helper Functions */
+
+/* Checks if the user address is valid */
 bool valid (void * vaddr);
+/* Calls exit with -1 status */
 void kill (void);
+/* Returns file * equivalent to file descriptor */
 struct file_desc * get_file(int);
 
-//static struct lock big_lock;
-
-/*
-struct file_desc
-{
-  struct file * fp;
-  int fd;
-  struct list_elem elem;
-};
-*/
 void
 syscall_init (void) 
 {
+  /* Initializing big lock i.e. lock for filesys */
   lock_init(&big_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
@@ -49,7 +48,6 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  //printf ("In System call handler!\n");
   if(!valid (f->esp))
   {
     kill();
@@ -105,11 +103,9 @@ syscall_handler (struct intr_frame *f)
       break;
 
     case SYS_READ:
-      //printf("Enter case read\n");
       if (!valid(p+5) || !valid (p+6) || !valid (p+7) || !valid (*(p+6)))
         kill();
       f->eax=read(*(p+5),*(p+6),*(p+7));
-      //printf("Exit case read\n");
       break;
     
     case SYS_CLOSE:
@@ -119,12 +115,10 @@ syscall_handler (struct intr_frame *f)
       break;
     
     case SYS_WRITE:
-      //printf("Enter write case\n");
       if (!valid(p+5) || !valid(p+6) || 
             !valid (p+7)|| !valid(*(p+6)))
         kill();
       f->eax = write(*(p+5),*(p+6),*(p+7));
-      //printf("Done write case\n");
       break;
     
     case SYS_SEEK:
@@ -153,7 +147,6 @@ syscall_handler (struct intr_frame *f)
       break;
   }
 
-  //thread_exit ();
 }
 
 void halt (void)
@@ -165,9 +158,7 @@ int write (int fd, const void *buffer, unsigned length)
 {
   if (fd == STDOUT_FILENO)
   {
-    //lock_acquire(&big_lock);
     putbuf(buffer,length);
-    //lock_release(&big_lock);
     return length;
   }
 
@@ -179,22 +170,19 @@ int write (int fd, const void *buffer, unsigned length)
   int ret = file_write(fd_elem->fp,buffer,length);
   lock_release(&big_lock);
   return ret;
-  //return file_write(fd_elem->fp,buffer,length);
 }
 
 void exit (int status)
 {
-  //printf("In exit thread %s id %d\n",thread_current()->name,thread_current()->tid);
   struct thread * parent = thread_current()->parent;
-  struct child * child;
+  thread_current()->exit_code = status;
   if (!list_empty(&parent->children))
   {
-    child = get_child(thread_current()->tid,parent);
+    struct child * child = get_child(thread_current()->tid,parent);
 
     if (child!=NULL)
     {
       child->ret_val=status;
-      thread_current()->exit_code = status;
       child->used = 1;
       if (thread_current()->parent->waiton_child 
               == thread_current()->tid)
@@ -210,19 +198,13 @@ void exit (int status)
 tid_t exec (const char * cmd_line)
 {
   lock_acquire(&big_lock);
-  //char * file_name;
-  //file_name = malloc(sizeof(strlen(cmd_line)+1));
-  //strlcpy(file_name,cmd_line);
   tid_t tid = process_execute(cmd_line);
-  //free(file_name);
   lock_release(&big_lock);
   return tid;
 }
 int wait(tid_t id)
 {
-  //lock_acquire(&big_lock);
   tid_t tid = process_wait(id);
- // lock_release(&big_lock);
   return tid;
 }
 
@@ -285,13 +267,11 @@ int read (int fd, void * buffer, unsigned length)
    
   if (fd == STDIN_FILENO)
   { 
-    //lock_acquire(&big_lock);
     while (i < length)
     {
       *((char *)buffer+i) = input_getc();
       i++;
     }
-    //lock_release(&big_lock);
     return i;
   }
 
@@ -303,7 +283,6 @@ int read (int fd, void * buffer, unsigned length)
   int len = file_read(fd_elem->fp,buffer,length);
   lock_release(&big_lock);
   return len;
-  //return file_redd`ad (fd_elem->fp, buffer, length);
 }
 
 void seek (int fd, unsigned position)
@@ -329,7 +308,6 @@ unsigned tell (int fd)
   unsigned pos = file_tell (fd_elem->fp);
   lock_release(&big_lock);
   return pos;
-  //return file_tell(fd_elem->fp);
 }
 
 void close (int fd)
@@ -366,25 +344,8 @@ bool valid(void * vaddr)
 
 void kill () 
 {
-    struct thread * parent = thread_current()->parent;
-
-    if(!list_empty(&parent->children))
-    {
-      struct child * child = get_child(thread_current()->tid,parent);
-
-      if(child!= NULL)
-      {
-        child->ret_val = -1;
-        thread_current()->exit_code=-1;
-        child->used = 1;
-        if (thread_current()->parent->waiton_child 
-                == thread_current()->tid)
-          sema_up(&thread_current()->parent->child_sem); 
-      }
-    }
+  exit(-1);
   
-    //thread_current()->exit_code = -1;
-    thread_exit();
 }
 
 struct file_desc * get_file (int fd)
