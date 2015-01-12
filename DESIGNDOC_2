@@ -47,7 +47,7 @@ First we allocate memory for argv with default argv_size = 2
 
 In each iteration:
 - esp is subtracted by 'strlen(token)+1'
-- argv[argc] is set esp
+- argv[argc] is set to esp
 - argc is incremented
 - If argc >= argv_size, we reallocate argv to double the
   previous size
@@ -100,7 +100,7 @@ int exit_code;
     It will be used when printing the exit message
 
 struct list file_list;
-  - List of open files with (fd) -> (file *) mapping
+  - List of process's open files with (fd) -> (file *) mapping
 
 int fd_count;
   - Total count of open files
@@ -112,7 +112,8 @@ struct list children;
 
 struct thread * parent;
   - Reference to parent thread
-    It will be used for passing return status to parent thread
+    It will be used for passing return status to parent thread,
+    waking up parent thread if it is waiting on this thread.
 
 bool production_flag;
   - A flag to reflect parent process that child process has
@@ -157,14 +158,15 @@ struct file_desc
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
 
-File descriptors are mapped to open files using struct file_desc.
+File descriptors are mapped to open files using struct file_desc
+which has file pointer, file descriptor and list_elem as its members.
 File descriptors are unique within a process. 
 We maintain a list (file_list)of file_desc per thread. 
 We add a file_desc element to file_list in each open() call, 
 and removes one in each close() call.
 Moreover, we keep a fd_count which is inremented at
-every open() call. This allows us to give a unique descriptor in
-each open() call.
+every open() call. This allows us to give a unique descriptor for
+every open() call.
 
 ---- ALGORITHMS ----
 
@@ -193,23 +195,22 @@ If there is no child element, we return -1.
 
 Then current thread's waiton_child is set to the passed tid.
 
-Current thread checks child elements used value, if it is not 1 
+Current thread checks child element's used value, if it is not 1 
 (i.e. no child process has yet placed a return value in this elem,
 current thread sleeps.
 
 When woken up by child process (when it exits), we retrieve return
 value from child elem i.e child->ret_val, remove child from children 
-list, free child elem's memory and return return retrieved ret val 
-to the calling process.
+list, free child elem's memory and return return retrieved ret value.
 
 How a child wakes up the waiting parent?
 
-When a process calss exit, it retrieves the child elem from its
+When a process calls exit, it retrieves the child elem from its
 parents children list equivalent to its tid.
 
-It then set the ret value, set the used value to 1 and if 
-parent's waiton_child is equal to its tid, it ups the parents child_sem
-semaphore.
+It then set the ret value to its exit status, set the used value 
+to 1 and if parent's waiton_child is equal to its tid, it ups 
+the parents child_sem semaphore.
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -292,7 +293,7 @@ P calls wait(C) after C exits
 P terminates without waiting after C exits
   - When P terminates without waiting after C exits, we don't have to
     take any extra measures. C has updated used and ret value but
-    we don't use them. Instead we simply exit freeing child_list
+    P doen't use them. Instead it simply exits freeing child_list
 
 P terminates without waiting before C exits
   - when C exits, it checks if its parent's children list is empty. 
@@ -319,6 +320,10 @@ Each process has its own unique set of file descriptors to file pointer
 mapping similar to UNIX systems.
 
 My design is simple to implement and comprehend.
+
+One possible disadvantge is if the number of open files becomes
+large, retrieving file pointer equivalent to a descriptor will 
+require more time. 
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
