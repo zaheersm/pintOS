@@ -166,7 +166,7 @@ struct thread
     struct semaphore production_sem;
     
     /* File pointer to the executable 
-       Executable fileneeds to be closed when exiting */
+       Executable file needs to be closed when exiting */
     struct file * file;
     
     /* Used when a thread waits for a child */

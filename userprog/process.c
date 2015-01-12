@@ -600,6 +600,14 @@ setup_stack (void **esp, char * file_name)
     *esp -= strlen(token) + 1;
     argv[argc] = *esp;
     argc++;
+    
+    if (argc >= 64)
+    {
+      free(argv);
+      return false;
+    }
+
+    
     if (argc >= argv_size) 
     {
       argv_size *= 2;

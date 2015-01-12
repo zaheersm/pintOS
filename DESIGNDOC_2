@@ -1,0 +1,326 @@
+		     +--------------------------+
+       	       	     |		CS 140		|
+		     | PROJECT 2: USER PROGRAMS	|
+		     | 	   DESIGN DOCUMENT     	|
+		     +--------------------------+
+
+---- GROUP ----
+
+>> Fill in the names and email addresses of your group members.
+
+Muhammad Zaheer  <smzaheerabbas@gmail.com>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+			   ARGUMENT PASSING
+			   ================
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+char * argv[];  - List of arguments 
+char * token    - Token
+char * save_ptr - Pointer to next token
+int argc;       - Current number of arg being processed
+int argv_size;  - Max number arguments
+
+---- ALGORITHMS ----
+
+>> A2: Briefly describe how you implemented argument parsing.  How do
+>> you arrange for the elements of argv[] to be in the right order?
+>> How do you avoid overflowing the stack page?
+
+We used strtok_r() function provided by pintos in a loop
+over delimiter space " " until it returned NULL.
+
+First we allocate memory for argv with default argv_size = 2
+
+In each iteration:
+- esp is subtracted by 'strlen(token)+1'
+- argv[argc] is set esp
+- argc is incremented
+- If argc >= argv_size, we reallocate argv to double the
+  previous size
+- Finally copy the token to esp
+
+A NULL pointer is added at the end of argv i.e at argv[argc]
+
+Next pointers to the strings are pushed to the stack
+i.e. we traverse over argv[] in reverse order and push the
+char * on stack. Traversing argv[] in reverse order gives 
+us the desired order of arguments.
+Then we push address of argv[0], argc and a fake return address.
+
+argv is freed before returning
+
+We have restricted the number of arguments (including the name of process)
+to 64. If the number of arguments exceeds 64, we free argv and return
+false. This will make sure that the thread is exited and parent
+thread is notified of failure.
+
+---- RATIONALE ----
+
+>> A3: Why does Pintos implement strtok_r() but not strtok()?
+
+strtok_r() is a re-entrant version of strtok.
+strtok_r uses an extra argument for saving the context of
+tockenizing (i.e. position of next token)
+Hence strtok_r is thread safe and can be used in nested loops.
+
+>> A4: In Pintos, the kernel separates commands into a executable name
+>> and arguments.  In Unix-like systems, the shell does this
+>> separation.  Identify at least two advantages of the Unix approach.
+
+UNIX approach restricts user from passing bad arguments to kernel.
+Moreover, kernel now has one less thing to worry about.
+           
+           SYSTEM CALLS
+			     ============
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+In thread.h:
+
+int exit_code;
+  - Exit code of the thread/process
+    It will be used when printing the exit message
+
+struct list file_list;
+  - List of open files with (fd) -> (file *) mapping
+
+int fd_count;
+  - Total count of open files
+    It will assist in granting fd to a new file
+
+struct list children;
+  - List of child processes in the form of struct child
+    defined in process.h
+
+struct thread * parent;
+  - Reference to parent thread
+    It will be used for passing return status to parent thread
+
+bool production_flag;
+  - A flag to reflect parent process that child process has
+    been loaded successfully
+
+struct semaphore production_sem;
+  - Parent thread needs to sleep until child successfully starts
+    execution, production_sem fulfills this purpose.
+
+struct file * file;
+  - File pointer to the executable.
+    Executable file needs to be closed when exiting
+
+struct semaphore child_sem;
+  - Used when a thread waits for a child
+
+tid_t waiton_child;
+  - To keep track of the child a thread has been waiting for
+
+In process.h:
+
+struct child
+{
+  tid_t id;
+  int ret_val;
+  int used;
+  struct list_elem elem;
+}
+ - Child struct to keep track of child processes and their return value
+
+In syscall.h:
+
+struct file_desc
+{
+  struct file * fp;
+  int fd;
+  struct list_elem elem;
+}
+  - To keep file descriptor -> file pointer mapping
+
+>> B2: Describe how file descriptors are associated with open files.
+>> Are file descriptors unique within the entire OS or just within a
+>> single process?
+
+File descriptors are mapped to open files using struct file_desc.
+File descriptors are unique within a process. 
+We maintain a list (file_list)of file_desc per thread. 
+We add a file_desc element to file_list in each open() call, 
+and removes one in each close() call.
+Moreover, we keep a fd_count which is inremented at
+every open() call. This allows us to give a unique descriptor in
+each open() call.
+
+---- ALGORITHMS ----
+
+>> B3: Describe your code for reading and writing user data from the
+>> kernel.
+
+In read, if we are supposed to read from STDIN, we call input_getc
+Otherwise, we get relevant file pointer using passed fd from the
+file_list of current thread. Filesys lock (big_lock) is acquired,
+filesys function file_read is called and then lock is released.
+
+In write, if we are supposed to write to STDOUT, we call putbuf.
+Otherwise, we get relevant file pointer using passed fd from the
+file_list of current thread. Filesys lock (big_lock) is acquired,
+filesys function file_write is called and then lock is released.
+
+>> B4: Briefly describe your implementation of the "wait" system call
+>> and how it interacts with process termination.
+
+wait() system call further calls process_wait.
+
+In process_wait, we used tid to retrieve relevant child element
+from children's list of the current thread.
+
+If there is no child element, we return -1.
+
+Then current thread's waiton_child is set to the passed tid.
+
+Current thread checks child elements used value, if it is not 1 
+(i.e. no child process has yet placed a return value in this elem,
+current thread sleeps.
+
+When woken up by child process (when it exits), we retrieve return
+value from child elem i.e child->ret_val, remove child from children 
+list, free child elem's memory and return return retrieved ret val 
+to the calling process.
+
+How a child wakes up the waiting parent?
+
+When a process calss exit, it retrieves the child elem from its
+parents children list equivalent to its tid.
+
+It then set the ret value, set the used value to 1 and if 
+parent's waiton_child is equal to its tid, it ups the parents child_sem
+semaphore.
+
+>> B6: Any access to user program memory at a user-specified address
+>> can fail due to a bad pointer value.  Such accesses must cause the
+>> process to be terminated.  System calls are fraught with such
+>> accesses, e.g. a "write" system call requires reading the system
+>> call number from the user stack, then each of the call's three
+>> arguments, then an arbitrary amount of user memory, and any of
+>> these can fail at any point.  This poses a design and
+>> error-handling problem: how do you best avoid obscuring the primary
+>> function of code in a morass of error-handling?  Furthermore, when
+>> an error is detected, how do you ensure that all temporarily
+>> allocated resources (locks, buffers, etc.) are freed?  In a few
+>> paragraphs, describe the strategy or strategies you adopted for
+>> managing these issues. 
+
+First esp's address (received in intr_frame in system call handler) 
+is validated using a function valid().
+It checks if esp < PHYSBASE and its entry exists in page_dir.
+
+If a call to valid returns false, we kill the process i.e exit
+with status -1.
+After retrieving the system call number, we extract equivalent args,
+validating each arg using valid(). If an arg is a pointer, we further
+call valid function to validate location it points to.
+
+Whenever a process exits i.e. regular exit OR gets killed,
+process_exit() gets called. In process_exit, all resources are freed
+i.e. children list and file_list
+
+---- SYNCHRONIZATION ----
+
+>> B7: The "exec" system call returns -1 if loading the new executable
+>> fails, so it cannot return before the new executable has completed
+>> loading.  How does your code ensure this?  How is the load
+>> success/failure status passed back to the thread that calls "exec"?
+
+A semaphore production_sem (init value 0) and a boolean 
+production_flag is used to ensure this. 
+Parent process after starting a thread using thread_create,
+sleeps by downing the production_sem.
+
+Newly created thread has a reference to the parent thread which 
+is set in thread_create.
+
+Newly created thread executes load function. If load is successful,
+it sets parent's production_flag to true, otherwise false and wakes
+up the parent thread.
+
+Parent thread, after waking up, checks the production_flag. 
+If the flag is false, exec returns with -1 otherwise returns
+the tid of the newly create thread.
+
+>> B8: Consider parent process P with child process C.  How do you
+>> ensure proper synchronization and avoid race conditions when P
+>> calls wait(C) before C exits?  After C exits?  How do you ensure
+>> that all resources are freed in each case?  How about when P
+>> terminates without waiting, before C exits?  After C exits?  Are
+>> there any special cases?
+
+A semaphore child_sem and tid_t waiton are used for this purpose
+
+P calls wait(C) before C exits
+  - P first sets waiton to child's tid. If child->used in struct child
+    of C in P's children list is zero, it sleeps by downing its child_sem.
+    
+    When C exits, it sets 'child->used' to 1 in its 'child struct' 
+    in P's children list, sets child->ret to its exit code. 
+    C then checks if P's waiton is equal to its tid. 
+    If yes, it ups P's child_sem, consequently waking up P.
+
+    P, after waking up, retrieve ret val from 'struct child' of C, removes    C from its children_list, frees its memory and returns the ret value
+
+P calls wait(C) after C exits
+  - Everything remains same execpt this time P does not sleep by
+    downing its sem because child->used in 'struct child' of C in P's 
+    list is already 1 due to the fact that C has already exited and 
+    has set child->used to 1 in its 'child struct' in P's children list.
+    Moreover, it has already set the return value as well.
+
+P terminates without waiting after C exits
+  - When P terminates without waiting after C exits, we don't have to
+    take any extra measures. C has updated used and ret value but
+    we don't use them. Instead we simply exit freeing child_list
+
+P terminates without waiting before C exits
+  - when C exits, it checks if its parent's children list is empty. 
+    In this case, it turns out to be empty so C doesn't update any 
+    values OR up the semaphore. C simply exits.
+
+When a child wakes up a parent, the parents releases memory
+for its child struct. Moreover, all resources are eventually freed 
+when a process exits.
+
+---- RATIONALE ----
+
+>> B9: Why did you choose to implement access to user memory from the
+>> kernel in the way that you did?
+
+It is more simple, straightforward and easy to implement.
+
+>> B10: What advantages or disadvantages can you see to your design
+>> for file descriptors?
+
+We maintain a simple, per process list. It comes with all the advantages
+of an unordered list i.e. quick addition, linear time retrieval.
+Each process has its own unique set of file descriptors to file pointer 
+mapping similar to UNIX systems.
+
+My design is simple to implement and comprehend.
+
+>> B11: The default tid_t to pid_t mapping is the identity mapping.
+>> If you changed it, what advantages are there to your approach?
+
+I have not changed it. This keeps my design simple.
