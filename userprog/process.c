@@ -292,8 +292,6 @@ bool
 load (const char *file_name, void (**eip) (void), void **esp) 
 {
 
-  //printf("Enter load %s\n",thread_current()->name);
-  //printf("In load\n");
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -311,18 +309,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char * fn_cp = malloc (strlen(file_name)+1);
   strlcpy(fn_cp, file_name, strlen(file_name)+1);
   char * save_ptr;
-  //printf("BEFORE LOL\n");
-  //printf("fn_cp tmp%p %s\n",fn_cp,fn_cp); 
   fn_cp = strtok_r(fn_cp," ",&save_ptr);
-  //printf("fn_cp tmp %p %saa\n",fn_cp,fn_cp);
-  //printf("AFTER LOL\n");
-  //printf("BEFOREOPEN\n");
-  //printf("Me %s Name %s\n",thread_current()->name,big_lock.holder->name);
   file = filesys_open (fn_cp);
-  //printf("AFTER OPEN\n");
   free(fn_cp);
-  //printf("AFTEROPEN\n");
-  //TODO : Free fn_cp
    
   if (file == NULL) 
     {
@@ -414,7 +403,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* We arrive here whether the load is successful or not. */
   if (success!= true)
     file_close (file);
-  //printf("Exit load %s\n",thread_current()->name);
   return success;
 }
 
@@ -531,7 +519,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp, char * file_name) 
 {
-  //printf("\n\n In setup stack %s\n\n",thread_current()->name);
   uint8_t *kpage;
   bool success = false;
 
@@ -560,7 +547,6 @@ setup_stack (void **esp, char * file_name)
     *esp -= strlen(token) + 1;
     argv[argc] = *esp;
     argc++;
-    //printf("arg %s\n",*esp);
     if (argc >= argv_size) 
     {
       argv_size *= 2;
@@ -581,7 +567,7 @@ setup_stack (void **esp, char * file_name)
 
   }
   
-  // Pushing argv
+  //pushing argv
   token = *esp;
   *esp-=sizeof(char**);
   memcpy(*esp,&token,sizeof(char**));
@@ -596,7 +582,6 @@ setup_stack (void **esp, char * file_name)
   free(argv);
   
   //hex_dump(PHYS_BASE,*esp,PHYS_BASE-(*esp),true);
-  //printf("\n\n Exiting setup_stack %s\n\n",thread_current()->name);
   return success;
 }
 
