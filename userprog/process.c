@@ -39,22 +39,46 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  
+  /*  Using the same page for making another copy
+      It will be used to chop out name for the the
+      new process from command line args   */
   process_name=fn_copy+strlen(fn_copy)+1;
 
-  memcpy(process_name,file_name,strlen(file_name)+1);
+  strlcpy(process_name,file_name,strlen(file_name)+1);
 
+  /* Choping out name for the new process */
   char *save_ptr;
   process_name = strtok_r (process_name," ",&save_ptr);
 
-	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
+	/* Create a new thread to execute FILE_NAME. 
+     In thread_create, we set a reference to the 
+     parent thread in newly created process.
+     We also add newly created thread in parent thread's 
+     children list in the form of child struct defined in
+     process.h
+  */
+	
   
+  tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
+  
+  /* If thread_create fails, free page and return TID_ERROR */
 	if (tid == TID_ERROR)
   {
     palloc_free_page (fn_copy); 
     return tid; 
   }
+
+  /* Wait for the child thread to load executable */
 	sema_down(&thread_current()->production_sem);  
+  
+  /*  Check if load was successful or not 
+      In case of failure, remove child for
+      new process from current thread's 
+      children list 
+      P.S: New child was added to current thread's
+      children list in thread_create */
+
   if (thread_current()->production_flag == false)
   {
     struct child * child = get_child(tid,thread_current());
@@ -63,7 +87,7 @@ process_execute (const char *file_name)
       list_remove(&child->elem);
       free(child);
     }
-    return -1;
+    return TID_ERROR;
   }
   return tid;
 }
@@ -89,11 +113,17 @@ start_process (void *file_name_)
   
   if (!success)
   {
+    /* If load fails, update current thread (new process)
+       exit code to -1, set production flag to false
+       wake the parent thread and exit*/
     thread_current()->exit_code = -1;
     thread_current()->parent->production_flag = false;
     sema_up(&thread_current()->parent->production_sem);
     thread_exit ();
   }
+
+  /* If load is successful, set production flag to true ,
+     wake the parent thread */
   thread_current()->parent->production_flag = true;
   sema_up(&thread_current()->parent->production_sem);
   /* Start the user process by simulating a return from an
