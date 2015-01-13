@@ -493,6 +493,8 @@ thread_set_priority (int new_priority)
   
   /* new_priority does not take effect until the thread has released
   all the priority it has received under donation */
+  
+  enum intr_level old_level = intr_disable();
   struct thread * curr = thread_current();
   if(curr->original_priority == curr->priority)
     curr->original_priority = curr->priority = new_priority;
@@ -500,7 +502,10 @@ thread_set_priority (int new_priority)
     curr->original_priority = new_priority;
   
   if (list_empty(&ready_list))
+  {
+    intr_set_level(old_level);
     return;
+  }
   /*
     Get highest priority thread from ready list
     and compare. 
@@ -508,7 +513,6 @@ thread_set_priority (int new_priority)
     than highest priority thread, yield
   */
   
-  enum intr_level old_level = intr_disable();
   struct list_elem * e = list_back (&ready_list);
   struct thread * t = list_entry(e, struct thread, elem);
   if ( new_priority < t->priority)

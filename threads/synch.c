@@ -369,6 +369,7 @@ void release_priority (struct lock * lock)
   }
   /* Otherwise set the priority to the maximum priority of those
     left in the donors list */
+  
   else
   {
     int max = curr->original_priority;
