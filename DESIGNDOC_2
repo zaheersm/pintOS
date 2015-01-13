@@ -55,7 +55,7 @@ In each iteration:
 
 A NULL pointer is added at the end of argv i.e at argv[argc]
 
-Next pointers to the strings are pushed to the stack
+Next, pointers to the strings are pushed to the stack
 i.e. we traverse over argv[] in reverse order and push the
 char * on stack. Traversing argv[] in reverse order gives 
 us the desired order of arguments.
@@ -97,13 +97,13 @@ In thread.h:
 
 int exit_code;
   - Exit code of the thread/process
-    It will be used when printing the exit message
+    It will be used for printing the exit message
 
 struct list file_list;
   - List of process's open files with (fd) -> (file *) mapping
 
 int fd_count;
-  - Total count of open files
+  - Total count of open files of the process
     It will assist in granting fd to a new file
 
 struct list children;
@@ -112,8 +112,8 @@ struct list children;
 
 struct thread * parent;
   - Reference to parent thread
-    It will be used for passing return status to parent thread,
-    waking up parent thread if it is waiting on this thread.
+    It will be used for passing return status to parent thread
+    and waking up parent thread if it is waiting on this thread.
 
 bool production_flag;
   - A flag to reflect parent process that child process has
@@ -159,11 +159,11 @@ struct file_desc
 >> single process?
 
 File descriptors are mapped to open files using struct file_desc
-which has file pointer, file descriptor and list_elem as its members.
+which has a file pointer, file descriptor and list_elem as its members.
 File descriptors are unique within a process. 
 We maintain a list (file_list)of file_desc per thread. 
 We add a file_desc element to file_list in each open() call, 
-and removes one in each close() call.
+and remove one in each close() call.
 Moreover, we keep a fd_count which is inremented at
 every open() call. This allows us to give a unique descriptor for
 every open() call.
